@@ -3,8 +3,9 @@
 [Claude Code](https://claude.com/claude-code) 用のSkill。DockerでOWASP Juice Shop / WebGoat / DVWA / OWASP crAPI の
 脆弱性学習環境をローカルに構築・起動・停止・リセット・状態確認できる。
 
-docker-compose定義一式をSkill自身のディレクトリ内に同梱しているため、他のプロジェクトのファイルには一切依存しない。
-必要なのは Docker（と `docker compose`）だけ。
+docker-compose定義をあらかじめファイルとして同梱するのではなく、`setup`アクションでその場生成（または各プロジェクトの
+公式リポジトリから直接取得）するため、Skill本体は `SKILL.md` 1枚だけで完結する。他のプロジェクトのファイルには
+一切依存しない。必要なのは Docker（と `docker compose`）、そしてイメージ・compose定義取得用のインターネット接続だけ。
 
 ## インストール
 
@@ -25,7 +26,7 @@ Claude Codeを再起動（または新しいセッションを開始）すると
 Claude Codeに自然文で依頼するか、`/security-lab <環境名> <アクション>` の形式で呼び出す。
 
 ```
-/security-lab juice-shop build   # Juice Shopを構築して起動
+/security-lab juice-shop build   # compose定義を生成してJuice Shopを構築・起動
 /security-lab dvwa reset         # DVWAをリセット
 /security-lab all check          # 全環境の稼働状況を確認
 /security-lab check              # 環境名省略時は all 扱い
@@ -38,7 +39,7 @@ Claude Codeに自然文で依頼するか、`/security-lab <環境名> <アク�
 | `dvwa` | http://localhost:4280（初回は`/setup.php`でDB初期化が必要。`admin`/`password`） |
 | `crapi` | http://localhost:8888（MailHog: http://localhost:8025） |
 
-アクション一覧: `build`（構築） / `up`（開始） / `stop`（停止） / `reset`（リセット） / `check`（状態確認）
+アクション一覧: `setup`（初期化・compose生成） / `build`（構築） / `up`（開始） / `stop`（停止） / `reset`（リセット） / `check`（状態確認）
 
 詳細な動作仕様は [`security-lab/SKILL.md`](./security-lab/SKILL.md) を参照。
 

@@ -7,15 +7,17 @@ description: >
   「セキュリティ学習環境を立ち上げて」「全部止めて」「今何が動いてる？」のような依頼で使う。
   引数は `<環境名> <アクション>` の形式（例: `juice-shop up`, `dvwa reset`, `all stop`, `all check`）。
   環境名: juice-shop / webgoat / dvwa / crapi（すべて可: all）。
-  アクション: build（構築）/ up（開始）/ stop（停止）/ reset（リセット）/ check（状態確認）。
+  アクション: setup（初期化）/ build（構築）/ up（開始）/ stop（停止）/ reset（リセット）/ check（状態確認）。
 ---
 
 # security-lab
 
 このSkill単体で完結する、ローカルのセキュリティ学習環境（OWASP Juice Shop, WebGoat, DVWA, OWASP crAPI）を
-Dockerで構築・操作するスキル。docker-compose定義は本Skillディレクトリ内の `compose/<環境名>/` に同梱されており、
-どのプロジェクトのどのマシンから使っても、外部ファイルへの依存なしにそのまま動作する。
-Docker（と`docker compose`）さえインストールされていれば、他に前提条件はない。
+Dockerで構築・操作するスキル。docker-compose定義をSkillの中に静的なファイルとして同梱するのではなく、
+`setup`アクションでその場生成（または各プロジェクト公式リポジトリから取得）する方式にしているため、
+Skill本体は `SKILL.md` 1枚だけで完結する。どのプロジェクトのどのマシンから使っても、
+外部ファイルへの依存なしにそのまま動作する。Docker（と`docker compose`）とインターネット接続（イメージ・compose定義の取得用）
+さえあれば、他に前提条件はない。
 
 ## Skillディレクトリ（`$SKILL_DIR`）の特定
 
@@ -27,6 +29,7 @@ Base directory for this skill: <パス>
 
 この `<パス>` を `$SKILL_DIR` として扱うこと。以降のすべてのコマンドはこの `$SKILL_DIR` を起点にする
 （ユーザーや環境によってパスが変わるため、固定の絶対パスをハードコードしない）。
+`setup`で生成するcompose定義一式は `$SKILL_DIR/compose/<環境名>/` に書き出す。
 
 ## 環境一覧
 
@@ -39,13 +42,14 @@ Base directory for this skill: <パス>
 
 ## アクションの意味
 
-| アクション | 内容 | 実行するdocker composeコマンド |
-|---|---|---|
-| `build`（構築） | 最新イメージをpullしてから起動。初回セットアップや最新化に使う | `pull` → `up -d` |
-| `up`（開始） | 既存のイメージ・状態のまま起動（停止中のコンテナも再開） | `up -d` |
-| `stop`（停止） | コンテナを止める。データ（DBの中身など）は保持される | `stop` |
-| `reset`（リセット） | コンテナとボリュームを完全に削除してから再作成。DBやユーザーデータも初期化される | `down -v` → `up -d` |
-| `check`（状態確認） | 起動・停止操作は行わず、現在「稼働中」か「停止中」かだけを表示する | `ps --status running -q` |
+| アクション | 内容 |
+|---|---|
+| `setup`（初期化） | `$DIR`にdocker-compose定義一式を生成する（起動はしない）。既にファイルがあれば上書きする |
+| `build`（構築） | `setup`を実行してから、最新イメージをpullして起動する。初回セットアップや最新化に使う |
+| `up`（開始） | 既存の状態のまま起動（停止中のコンテナも再開）。`$DIR`にファイルが無ければ先に`setup`する |
+| `stop`（停止） | コンテナを止める。データ（DBの中身など）は保持される |
+| `reset`（リセット） | コンテナとボリュームを完全に削除してから再作成。DBやユーザーデータも初期化される |
+| `check`（状態確認） | 起動・停止操作は行わず、現在「稼働中」か「停止中」かだけを表示する |
 
 環境名に `all` を指定した場合は、上記4環境（juice-shop / webgoat / dvwa / crapi）それぞれに対して同じアクションを順番に実行する。
 引数が1語だけ（環境名が省略されアクションのみ）の場合も `all` を指定したものとして扱う（例: `check` だけの呼び出しは `all check` と同じ）。
@@ -64,9 +68,105 @@ dvwa       : $SKILL_DIR/compose/dvwa
 crapi      : $SKILL_DIR/compose/crapi
 ```
 
+### setup（初期化）
+
+`$DIR/docker-compose.yml` が存在するかに関わらず、常に最新の内容で書き出す。
+
+#### juice-shop
+
+```bash
+mkdir -p "$DIR"
+cat > "$DIR/docker-compose.yml" <<'EOF'
+services:
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    container_name: juice-shop
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+EOF
+```
+
+#### webgoat
+
+```bash
+mkdir -p "$DIR"
+cat > "$DIR/docker-compose.yml" <<'EOF'
+services:
+  webgoat:
+    image: webgoat/webgoat:latest
+    container_name: webgoat
+    environment:
+      - TZ=Asia/Tokyo
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+EOF
+```
+
+#### dvwa
+
+公式リポジトリの `compose.yml`（https://raw.githubusercontent.com/digininja/DVWA/master/compose.yml）をベースに、
+ローカルにDVWAのソースを持たない前提で `build: .` / `pull_policy: always` を除去し、
+ビルド済みイメージ（`ghcr.io/digininja/dvwa:latest`）を直接pullする形にしたもの。
+
+```bash
+mkdir -p "$DIR"
+cat > "$DIR/docker-compose.yml" <<'EOF'
+volumes:
+  dvwa:
+
+networks:
+  dvwa:
+
+services:
+  dvwa:
+    image: ghcr.io/digininja/dvwa:latest
+    container_name: dvwa
+    environment:
+      - DB_SERVER=db
+    depends_on:
+      - db
+    networks:
+      - dvwa
+    ports:
+      - "127.0.0.1:4280:80"
+    restart: unless-stopped
+
+  db:
+    image: docker.io/library/mariadb:10
+    container_name: dvwa-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=dvwa
+      - MYSQL_DATABASE=dvwa
+      - MYSQL_USER=dvwa
+      - MYSQL_PASSWORD=p@ssw0rd
+    volumes:
+      - dvwa:/var/lib/mysql
+    networks:
+      - dvwa
+    restart: unless-stopped
+EOF
+```
+
+#### crapi
+
+crAPIは公式リポジトリに完全な`docker-compose.yml`（改変不要）があるため、その場でダウンロードして使う。
+
+```bash
+mkdir -p "$DIR/keys"
+curl -fsSL -o "$DIR/docker-compose.yml" https://raw.githubusercontent.com/OWASP/crAPI/main/deploy/docker/docker-compose.yml
+curl -fsSL -o "$DIR/.env" https://raw.githubusercontent.com/OWASP/crAPI/main/deploy/docker/.env
+curl -fsSL -o "$DIR/keys/jwks.json" https://raw.githubusercontent.com/OWASP/crAPI/main/deploy/docker/keys/jwks.json
+```
+
+`keys/jwks.json` はcrapi-identityサービスが必要とするJWT鍵。OWASP公式リポジトリのデモ用鍵で、学習環境専用（本番用途ではない）。
+
 ### build（構築）
 
 ```bash
+# 上記のsetup手順を実行した後
 docker compose --project-directory "$DIR" -f "$DIR/docker-compose.yml" pull
 docker compose --project-directory "$DIR" -f "$DIR/docker-compose.yml" [--compatibility] up -d
 ```
@@ -74,6 +174,7 @@ docker compose --project-directory "$DIR" -f "$DIR/docker-compose.yml" [--compat
 ### up（開始）
 
 ```bash
+# "$DIR/docker-compose.yml" が存在しなければ、先に該当環境のsetup手順を実行する
 docker compose --project-directory "$DIR" -f "$DIR/docker-compose.yml" [--compatibility] up -d
 ```
 
@@ -110,11 +211,12 @@ fi
 ```
 
 `all check` の場合は4環境それぞれに対して上記を実行し、一覧で表示する（例: `juice-shop: 停止中` `webgoat: 稼働中` ...）。
+まだ`setup`/`build`を一度も実行していない環境（`$DIR/docker-compose.yml`が存在しない）は「未構築」と表示する。
 
 ## 環境ごとの注意点
 
 - **dvwa**: `build`/`reset`後は毎回ブラウザで `http://localhost:4280/setup.php` にアクセスし「Create / Reset Database」ボタンを押してDBを初期化する必要がある（CSRFトークンが必要なためcurlでの自動化はしない）。ログインは `admin` / `password`。この案内は上記「reset（リセット）」節にある通り、実行結果として毎回ユーザーに提示すること。
-- **crapi**: サービス数が多いため `pull` に時間がかかる。全サービスがhealthyになるまで1〜2分程度かかることがある。起動後は `docker compose ... ps` で全サービスが `healthy` になっているか確認するとよい。`compose/crapi/keys/jwks.json` はcrapi-identityサービスが必要とするJWT鍵で、OWASP公式リポジトリのデモ用鍵をそのまま同梱している（本番用途ではない学習環境専用）。
+- **crapi**: サービス数が多いため `pull` に時間がかかる。全サービスがhealthyになるまで1〜2分程度かかることがある。起動後は `docker compose ... ps` で全サービスが `healthy` になっているか確認するとよい。
 - **webgoat**: 起動直後は `docker ps` 上で `unhealthy` と表示されることがあるが、Javaアプリの初期化中なだけで問題ないことが多い。少し待って再確認する。
 
 ## 実行後の確認
@@ -137,7 +239,3 @@ curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" <上記表のURL>
 - WebGoat: https://github.com/WebGoat/WebGoat / https://hub.docker.com/r/webgoat/webgoat
 - DVWA: https://github.com/digininja/DVWA / https://github.com/digininja/DVWA/pkgs/container/dvwa
 - OWASP crAPI: https://github.com/OWASP/crAPI / https://github.com/OWASP/crAPI/blob/main/docs/setup.md
-
-## 対象外
-
-- bWAPPは扱わない（メンテナンスが止まっているため）。
