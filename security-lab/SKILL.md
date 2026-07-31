@@ -15,30 +15,27 @@ description: >
 このSkill単体で完結する、ローカルのセキュリティ学習環境（OWASP Juice Shop, WebGoat, DVWA, OWASP crAPI）を
 Dockerで構築・操作するスキル。docker-compose定義をSkillの中に静的なファイルとして同梱するのではなく、
 `setup`アクションでその場生成（または各プロジェクト公式リポジトリから取得）する方式にしているため、
-Skill本体は `SKILL.md` 1枚だけで完結する。どのプロジェクトのどのマシンから使っても、
-外部ファイルへの依存なしにそのまま動作する。Docker（と`docker compose`）とインターネット接続（イメージ・compose定義の取得用）
-さえあれば、他に前提条件はない。
+Skill本体は `SKILL.md` 1枚だけで完結する。生成したcompose定義はSkill自身のディレクトリには置かず、
+**このSkillを呼び出したときの作業ディレクトリ（カレントディレクトリ）配下**に作成する。
+どのプロジェクトのどのマシンから使っても、外部ファイルへの依存なしにそのまま動作する。
+Docker（と`docker compose`）とインターネット接続（イメージ・compose定義の取得用）さえあれば、他に前提条件はない。
 
-## Skillディレクトリ（`$SKILL_DIR`）の特定
+## 作業ディレクトリ（`$BASE_DIR`）の特定
 
-このSkillが起動される際、システムメッセージに次のように表示される。
+各アクションの最初に一度だけ `pwd` を実行し、その絶対パスを `$BASE_DIR` として扱うこと。
+以降のコマンドはこの `$BASE_DIR` を起点にした絶対パスで実行する（シェルの`cd`状態や、後続コマンドでの
+作業ディレクトリ変化に影響されないようにするため）。
 
-```
-Base directory for this skill: <パス>
-```
-
-この `<パス>` を `$SKILL_DIR` として扱うこと。以降のすべてのコマンドはこの `$SKILL_DIR` を起点にする
-（ユーザーや環境によってパスが変わるため、固定の絶対パスをハードコードしない）。
-`setup`で生成するcompose定義一式は `$SKILL_DIR/compose/<環境名>/` に書き出す。
+compose定義は `$BASE_DIR/security-lab/<環境名>/` に生成する。
 
 ## 環境一覧
 
 | 環境名 | ディレクトリ（`$DIR`） | 主なURL | 備考 |
 |---|---|---|---|
-| `juice-shop` | `$SKILL_DIR/compose/juice-shop` | http://localhost:3000 | 単一コンテナ |
-| `webgoat` | `$SKILL_DIR/compose/webgoat` | http://localhost:8080/WebGoat, WebWolf: http://localhost:9090/WebWolf | 単一コンテナ、起動に数十秒かかる |
-| `dvwa` | `$SKILL_DIR/compose/dvwa` | http://localhost:4280 | DVWA本体 + MariaDBの2コンテナ |
-| `crapi` | `$SKILL_DIR/compose/crapi` | http://localhost:8888, MailHog: http://localhost:8025 | マイクロサービス構成（10コンテナ）。`--compatibility`オプションが必須 |
+| `juice-shop` | `$BASE_DIR/security-lab/juice-shop` | http://localhost:3000 | 単一コンテナ |
+| `webgoat` | `$BASE_DIR/security-lab/webgoat` | http://localhost:8080/WebGoat, WebWolf: http://localhost:9090/WebWolf | 単一コンテナ、起動に数十秒かかる |
+| `dvwa` | `$BASE_DIR/security-lab/dvwa` | http://localhost:4280 | DVWA本体 + MariaDBの2コンテナ |
+| `crapi` | `$BASE_DIR/security-lab/crapi` | http://localhost:8888, MailHog: http://localhost:8025 | マイクロサービス構成（10コンテナ）。`--compatibility`オプションが必須 |
 
 ## アクションの意味
 
@@ -62,10 +59,10 @@ Base directory for this skill: <パス>
 環境ごとのベースディレクトリ（`$DIR`）:
 
 ```
-juice-shop : $SKILL_DIR/compose/juice-shop
-webgoat    : $SKILL_DIR/compose/webgoat
-dvwa       : $SKILL_DIR/compose/dvwa
-crapi      : $SKILL_DIR/compose/crapi
+juice-shop : $BASE_DIR/security-lab/juice-shop
+webgoat    : $BASE_DIR/security-lab/webgoat
+dvwa       : $BASE_DIR/security-lab/dvwa
+crapi      : $BASE_DIR/security-lab/crapi
 ```
 
 ### setup（初期化）
